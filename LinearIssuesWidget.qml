@@ -51,7 +51,6 @@ PluginComponent {
     readonly property int startedCount: Linear.countStarted(issues)
 
     readonly property int pillIconSize: Math.max(16, Math.round(widgetThickness * 0.6))
-    readonly property color pillColor: configured ? Theme.surfaceText : Theme.surfaceTextMedium
     readonly property bool dotVisible: lastError !== "" || openCount > 0
     readonly property color dotColor: lastError !== "" ? Theme.error : (startedCount > 0 ? Theme.primary : Theme.secondary)
 
@@ -367,14 +366,13 @@ PluginComponent {
                 width: root.pillIconSize
                 height: root.pillIconSize
 
-                // The Linear mark is a solid glyph and reads as a blob beside
-                // the bar's outline icons, so the brand only shows up in the
-                // popout and the pill speaks the bar's own language.
-                DankIcon {
+                // The asset is already white; MultiEffect colorization keeps the
+                // source's lightness, so tinting it would only ever grey it out.
+                DankSVGIcon {
                     anchors.centerIn: parent
-                    name: "task_alt"
+                    source: Qt.resolvedUrl("assets/linear-mark.svg")
                     size: root.pillIconSize
-                    color: root.pillColor
+                    opacity: root.configured ? 1 : 0.45
                 }
 
                 Rectangle {
@@ -409,11 +407,13 @@ PluginComponent {
                 width: root.pillIconSize
                 height: root.pillIconSize
 
-                DankIcon {
+                // The asset is already white; MultiEffect colorization keeps the
+                // source's lightness, so tinting it would only ever grey it out.
+                DankSVGIcon {
                     anchors.centerIn: parent
-                    name: "task_alt"
+                    source: Qt.resolvedUrl("assets/linear-mark.svg")
                     size: root.pillIconSize
-                    color: root.pillColor
+                    opacity: root.configured ? 1 : 0.45
                 }
 
                 Rectangle {
@@ -495,9 +495,8 @@ PluginComponent {
 
                         DankSVGIcon {
                             anchors.verticalCenter: parent.verticalCenter
-                            source: Qt.resolvedUrl("assets/linear.svg")
+                            source: Qt.resolvedUrl("assets/linear-mark.svg")
                             size: Theme.iconSize
-                            colorOverride: Theme.surfaceText
                         }
 
                         StyledText {
