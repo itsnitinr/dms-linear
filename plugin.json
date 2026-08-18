@@ -25,6 +25,7 @@
         "curl"
     ],
     "requires_dms": ">=1.5.0",
+    "repo": "https://github.com/itsnitinr/dms-linear",
     "permissions": [
         "settings_read",
         "settings_write",
