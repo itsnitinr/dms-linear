@@ -50,7 +50,10 @@ PluginComponent {
     readonly property int openCount: issues.length
     readonly property int startedCount: Linear.countStarted(issues)
 
-    readonly property int pillIconSize: Math.max(16, Math.round(widgetThickness * 0.6))
+    // A solid glyph reads optically larger than the bar's outline icons at the
+    // same pixel size, so the mark is drawn a little smaller to match them.
+    readonly property int pillIconSize: Math.max(14, Math.round(widgetThickness * 0.52))
+    readonly property int dotSize: Math.max(6, Math.round(pillIconSize * 0.38))
     readonly property bool dotVisible: lastError !== "" || openCount > 0
     readonly property color dotColor: lastError !== "" ? Theme.error : (startedCount > 0 ? Theme.primary : Theme.secondary)
 
@@ -206,8 +209,12 @@ PluginComponent {
         if (state.id === issue.stateId || root.busyIssueId !== "" || root.apiKey === "")
             return
 
+        // If the request refuses to start, the row must not be left spinning
+        // with the whole list inert behind it.
+        if (!mutationRequest.send(root.apiKey, Linear.buildSetStateMutation(issue.id, state.id)))
+            return
+
         root.busyIssueId = issue.id
-        mutationRequest.send(root.apiKey, Linear.buildSetStateMutation(issue.id, state.id))
     }
 
     // Rewrites the one issue in place. An issue moved to a state the current
@@ -378,11 +385,11 @@ PluginComponent {
                 Rectangle {
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.rightMargin: -2
-                    anchors.topMargin: -1
-                    width: 7
-                    height: 7
-                    radius: 3.5
+                    anchors.rightMargin: -3
+                    anchors.topMargin: -3
+                    width: root.dotSize
+                    height: root.dotSize
+                    radius: root.dotSize / 2
                     color: root.dotColor
                     visible: root.dotVisible && !root.showCount
                 }
@@ -419,11 +426,11 @@ PluginComponent {
                 Rectangle {
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.rightMargin: -2
-                    anchors.topMargin: -1
-                    width: 7
-                    height: 7
-                    radius: 3.5
+                    anchors.rightMargin: -3
+                    anchors.topMargin: -3
+                    width: root.dotSize
+                    height: root.dotSize
+                    radius: root.dotSize / 2
                     color: root.dotColor
                     visible: root.dotVisible && !root.showCount
                 }
