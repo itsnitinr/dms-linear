@@ -367,11 +367,14 @@ PluginComponent {
                 width: root.pillIconSize
                 height: root.pillIconSize
 
-                DankSVGIcon {
-                    anchors.fill: parent
-                    source: Qt.resolvedUrl("assets/linear.svg")
+                // The Linear mark is a solid glyph and reads as a blob beside
+                // the bar's outline icons, so the brand only shows up in the
+                // popout and the pill speaks the bar's own language.
+                DankIcon {
+                    anchors.centerIn: parent
+                    name: "task_alt"
                     size: root.pillIconSize
-                    colorOverride: root.pillColor
+                    color: root.pillColor
                 }
 
                 Rectangle {
@@ -406,11 +409,11 @@ PluginComponent {
                 width: root.pillIconSize
                 height: root.pillIconSize
 
-                DankSVGIcon {
-                    anchors.fill: parent
-                    source: Qt.resolvedUrl("assets/linear.svg")
+                DankIcon {
+                    anchors.centerIn: parent
+                    name: "task_alt"
                     size: root.pillIconSize
-                    colorOverride: root.pillColor
+                    color: root.pillColor
                 }
 
                 Rectangle {
@@ -486,13 +489,24 @@ PluginComponent {
                     spacing: Theme.spacingS
                     visible: !root.configured
 
-                    StyledText {
+                    Row {
                         width: parent.width
-                        text: "Connect your Linear workspace"
-                        font.pixelSize: Theme.fontSizeLarge
-                        font.weight: Font.Bold
-                        color: Theme.surfaceText
-                        wrapMode: Text.WordWrap
+                        spacing: Theme.spacingS
+
+                        DankSVGIcon {
+                            anchors.verticalCenter: parent.verticalCenter
+                            source: Qt.resolvedUrl("assets/linear.svg")
+                            size: Theme.iconSize
+                            colorOverride: Theme.surfaceText
+                        }
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Connect your Linear workspace"
+                            font.pixelSize: Theme.fontSizeLarge
+                            font.weight: Font.Bold
+                            color: Theme.surfaceText
+                        }
                     }
 
                     Repeater {
