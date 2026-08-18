@@ -58,8 +58,10 @@ function escapeCurlValue(value) {
 // The API key is a credential, so it must never appear in a process argument
 // list where every local user can read it via /proc. curl gets the whole
 // request — URL, auth header and body — over stdin as a `-K -` config instead.
+// Redirects are deliberately not followed so the auth header can never be
+// replayed to a host other than api.linear.app.
 function curlConfig(apiKey, body, timeoutSeconds) {
-    const lines = ["url = \"" + escapeCurlValue(ENDPOINT) + "\"", "request = \"POST\"", "header = \"Content-Type: application/json\"", "header = \"Authorization: " + escapeCurlValue(apiKey) + "\"", "data-binary = \"" + escapeCurlValue(JSON.stringify(body)) + "\"", "max-time = \"" + Math.max(1, Math.round(timeoutSeconds || 20)) + "\"", "silent", "show-error", "location"]
+    const lines = ["url = \"" + escapeCurlValue(ENDPOINT) + "\"", "request = \"POST\"", "header = \"Content-Type: application/json\"", "header = \"Authorization: " + escapeCurlValue(apiKey) + "\"", "data-binary = \"" + escapeCurlValue(JSON.stringify(body)) + "\"", "max-time = \"" + Math.max(1, Math.round(timeoutSeconds || 20)) + "\"", "silent", "show-error"]
     return lines.join("\n") + "\n"
 }
 
