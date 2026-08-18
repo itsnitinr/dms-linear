@@ -52,7 +52,7 @@ PluginComponent {
 
     // A solid glyph reads optically larger than the bar's outline icons at the
     // same pixel size, so the mark is drawn a little smaller to match them.
-    readonly property int pillIconSize: Math.max(14, Math.round(widgetThickness * 0.52))
+    readonly property int pillIconSize: Math.max(13, Math.round(widgetThickness * 0.46))
     readonly property int dotSize: Math.max(6, Math.round(pillIconSize * 0.38))
     readonly property bool dotVisible: lastError !== "" || openCount > 0
     readonly property color dotColor: lastError !== "" ? Theme.error : (startedCount > 0 ? Theme.primary : Theme.secondary)
@@ -385,8 +385,8 @@ PluginComponent {
                 Rectangle {
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.rightMargin: -3
-                    anchors.topMargin: -3
+                    anchors.rightMargin: -2
+                    anchors.topMargin: -2
                     width: root.dotSize
                     height: root.dotSize
                     radius: root.dotSize / 2
@@ -426,8 +426,8 @@ PluginComponent {
                 Rectangle {
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.rightMargin: -3
-                    anchors.topMargin: -3
+                    anchors.rightMargin: -2
+                    anchors.topMargin: -2
                     width: root.dotSize
                     height: root.dotSize
                     radius: root.dotSize / 2
