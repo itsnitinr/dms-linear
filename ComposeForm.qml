@@ -29,8 +29,19 @@ Item {
     signal cancelled
 
     readonly property var teamLabels: (teams || []).map(team => Linear.teamLabel(team))
-    readonly property string currentTeamLabel: Linear.teamLabel(Linear.teamById(teams, draftTeamId))
-    readonly property string currentPriorityLabel: Linear.priorityMeta(draftPriority).label
+
+    // Deliberately computed on the spot rather than read off a derived
+    // property: syncFromDraft runs from a property change handler, and a
+    // handler fires alongside the bindings that depend on the same property,
+    // not after them — so a derived property read there can still hold the
+    // value from before the change.
+    function teamLabelNow() {
+        return Linear.teamLabel(Linear.teamById(root.teams, root.draftTeamId))
+    }
+
+    function priorityLabelNow() {
+        return Linear.priorityMeta(root.draftPriority).label
+    }
 
     function focusTitle() {
         titleField.forceActiveFocus()
@@ -48,10 +59,12 @@ Item {
             titleField.text = root.draftTitle
         if (descriptionEdit.text !== root.draftDescription)
             descriptionEdit.text = root.draftDescription
-        if (teamField.currentValue !== root.currentTeamLabel)
-            teamField.currentValue = root.currentTeamLabel
-        if (priorityField.currentValue !== root.currentPriorityLabel)
-            priorityField.currentValue = root.currentPriorityLabel
+        const teamLabel = root.teamLabelNow()
+        if (teamField.currentValue !== teamLabel)
+            teamField.currentValue = teamLabel
+        const priorityLabel = root.priorityLabelNow()
+        if (priorityField.currentValue !== priorityLabel)
+            priorityField.currentValue = priorityLabel
     }
 
     onDraftTitleChanged: syncFromDraft()
