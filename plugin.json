@@ -3,7 +3,7 @@
     "name": "Linear Issues",
     "description": "Your open Linear issues in the DankBar. Browse them by status, file a new one, open one in the Linear app, and move it through the workflow without leaving the bar.",
     "category": "productivity",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "author": "nitinranganath",
     "type": "widget",
     "icon": "task_alt",
