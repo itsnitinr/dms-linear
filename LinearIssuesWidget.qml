@@ -51,6 +51,8 @@ PluginComponent {
     property bool composing: false
     property string draftTeamId: ""
     property string draftTitle: ""
+    property string draftDescription: ""
+    property int draftPriority: 0
     property bool draftAssignSelf: true
     property bool pendingAssignSelf: true
     property var teams: []
@@ -255,7 +257,14 @@ PluginComponent {
 
     function cancelCompose() {
         root.composing = false
+        root.clearDraft()
+    }
+
+    // The team survives: it is a preference, not part of what you just wrote.
+    function clearDraft() {
         root.draftTitle = ""
+        root.draftDescription = ""
+        root.draftPriority = 0
     }
 
     function createIssue() {
@@ -265,6 +274,8 @@ PluginComponent {
         const payload = Linear.buildCreateIssueMutation({
             "teamId": root.draftTeamId,
             "title": root.draftTitle,
+            "description": root.draftDescription,
+            "priority": root.draftPriority,
             "assigneeId": root.draftAssignSelf ? root.viewerId : ""
         })
 
@@ -294,7 +305,7 @@ PluginComponent {
         }
 
         root.composing = false
-        root.draftTitle = ""
+        root.clearDraft()
 
         if (root.belongsInList(issue, root.pendingAssignSelf)) {
             root.issues = [issue].concat(root.issues)
@@ -714,13 +725,17 @@ PluginComponent {
                     teams: root.teams
                     draftTeamId: root.draftTeamId
                     draftTitle: root.draftTitle
+                    draftDescription: root.draftDescription
+                    draftPriority: root.draftPriority
                     draftAssignSelf: root.draftAssignSelf
                     canAssign: root.viewerId !== ""
                     busy: root.creating
                     problem: root.draftProblem
 
                     onTitleEdited: text => root.draftTitle = text
+                    onDescriptionEdited: text => root.draftDescription = text
                     onTeamPicked: teamId => root.draftTeamId = teamId
+                    onPriorityPicked: priority => root.draftPriority = priority
                     onAssignToggled: on => root.draftAssignSelf = on
                     onSubmitted: root.createIssue()
                     onCancelled: root.cancelCompose()

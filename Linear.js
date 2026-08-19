@@ -440,6 +440,24 @@ var PRIORITY_META = [{
         "urgent": false
     }]
 
+// The compose form's priority dropdown speaks in labels, like every other
+// dropdown in DMS, so it needs the list and the way back to a number.
+function priorityLabels() {
+    return PRIORITY_META.map(meta => meta.label)
+}
+
+function priorityIconMap() {
+    const map = {}
+    for (var i = 0; i < PRIORITY_META.length; i++)
+        map[PRIORITY_META[i].label] = PRIORITY_META[i].icon
+    return map
+}
+
+function priorityForLabel(label) {
+    const index = priorityLabels().indexOf(String(label || ""))
+    return index === -1 ? 0 : index
+}
+
 function priorityMeta(priority) {
     const index = typeof priority === "number" && priority >= 0 && priority < PRIORITY_META.length ? priority : 0
     return PRIORITY_META[index]

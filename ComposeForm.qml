@@ -12,6 +12,8 @@ Item {
     property var teams: []
     property string draftTeamId: ""
     property string draftTitle: ""
+    property string draftDescription: ""
+    property int draftPriority: 0
     property bool draftAssignSelf: true
     property bool canAssign: true
     property bool busy: false
@@ -19,13 +21,16 @@ Item {
     property string problem: ""
 
     signal titleEdited(string text)
+    signal descriptionEdited(string text)
     signal teamPicked(string teamId)
+    signal priorityPicked(int priority)
     signal assignToggled(bool on)
     signal submitted
     signal cancelled
 
     readonly property var teamLabels: (teams || []).map(team => Linear.teamLabel(team))
     readonly property string currentTeamLabel: Linear.teamLabel(Linear.teamById(teams, draftTeamId))
+    readonly property string currentPriorityLabel: Linear.priorityMeta(draftPriority).label
 
     function focusTitle() {
         titleField.forceActiveFocus()
@@ -37,16 +42,22 @@ Item {
     // when it has actually drifted, which keeps the round trip from looping.
     function syncFromDraft() {
         // The draft can arrive while the form is still being built.
-        if (!titleField || !teamField)
+        if (!titleField || !teamField || !priorityField || !descriptionEdit)
             return
         if (titleField.text !== root.draftTitle)
             titleField.text = root.draftTitle
+        if (descriptionEdit.text !== root.draftDescription)
+            descriptionEdit.text = root.draftDescription
         if (teamField.currentValue !== root.currentTeamLabel)
             teamField.currentValue = root.currentTeamLabel
+        if (priorityField.currentValue !== root.currentPriorityLabel)
+            priorityField.currentValue = root.currentPriorityLabel
     }
 
     onDraftTitleChanged: syncFromDraft()
+    onDraftDescriptionChanged: syncFromDraft()
     onDraftTeamIdChanged: syncFromDraft()
+    onDraftPriorityChanged: syncFromDraft()
     onTeamsChanged: syncFromDraft()
     Component.onCompleted: syncFromDraft()
 
@@ -69,12 +80,110 @@ Item {
             maximumLength: 255
             enabled: !root.busy
             showClearButton: true
+            keyNavigationTab: descriptionEdit
             onTextEdited: root.titleEdited(text)
             onAccepted: root.submitted()
 
             Keys.onEscapePressed: event => {
                 root.cancelled()
                 event.accepted = true
+            }
+        }
+
+        // There is no multi-line field in the DMS widget set, so this is a
+        // TextEdit dressed as one. It grows with what you type and starts
+        // scrolling rather than pushing the buttons off the popout.
+        StyledRect {
+            id: descriptionBox
+
+            readonly property real labelBandHeight: Math.round(Theme.fontSizeSmall * 1.4) + Theme.spacingXS * 2
+
+            width: parent.width
+            implicitHeight: labelBandHeight + Math.min(Math.max(44, descriptionEdit.implicitHeight), 120) + Theme.spacingS
+            height: implicitHeight
+            radius: Theme.cornerRadius
+            color: Theme.surfaceContainerHigh
+            border.color: descriptionEdit.activeFocus ? Theme.primary : Theme.outlineMedium
+            border.width: descriptionEdit.activeFocus ? 2 : 1
+
+            StyledText {
+                id: descriptionLabel
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.leftMargin: Theme.spacingM
+                anchors.rightMargin: Theme.spacingM
+                anchors.topMargin: Theme.spacingXS
+                text: "Description"
+                font.pixelSize: Theme.fontSizeSmall
+                color: descriptionEdit.activeFocus ? Theme.primary : Theme.surfaceVariantText
+                elide: Text.ElideRight
+            }
+
+            Flickable {
+                id: descriptionFlick
+
+                // Keeps the caret in view once the text is taller than the box.
+                function ensureVisible(rect) {
+                    if (contentY >= rect.y)
+                        contentY = rect.y
+                    else if (contentY + height <= rect.y + rect.height)
+                        contentY = rect.y + rect.height - height
+                }
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: Theme.spacingM
+                anchors.rightMargin: Theme.spacingM
+                anchors.topMargin: descriptionBox.labelBandHeight
+                anchors.bottomMargin: Theme.spacingS
+                contentWidth: width
+                contentHeight: descriptionEdit.implicitHeight
+                clip: true
+                interactive: contentHeight > height
+
+                TextEdit {
+                    id: descriptionEdit
+
+                    width: descriptionFlick.width
+                    enabled: !root.busy
+                    font.pixelSize: Theme.fontSizeMedium
+                    font.family: Theme.fontFamily
+                    color: Theme.surfaceText
+                    selectionColor: Theme.primaryContainer
+                    selectedTextColor: Theme.primary
+                    selectByMouse: true
+                    activeFocusOnTab: true
+                    wrapMode: TextEdit.Wrap
+                    onTextChanged: root.descriptionEdited(text)
+                    onCursorRectangleChanged: descriptionFlick.ensureVisible(cursorRectangle)
+
+                    // Return belongs to the text here, so filing the issue from
+                    // the description needs the modifier.
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Escape) {
+                            root.cancelled()
+                            event.accepted = true
+                        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (event.modifiers & Qt.ControlModifier)) {
+                            root.submitted()
+                            event.accepted = true
+                        }
+                    }
+
+                    StyledText {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        text: "Anything worth writing down (optional). Ctrl+Enter files it."
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.outlineButton
+                        visible: descriptionEdit.text === ""
+                        elide: Text.ElideRight
+                        width: descriptionEdit.width
+                    }
+                }
             }
         }
 
@@ -92,6 +201,17 @@ Item {
                 if (id !== "")
                     root.teamPicked(id)
             }
+        }
+
+        DankDropdown {
+            id: priorityField
+
+            width: parent.width
+            text: "Priority"
+            enabled: !root.busy
+            options: Linear.priorityLabels()
+            optionIconMap: Linear.priorityIconMap()
+            onValueChanged: value => root.priorityPicked(Linear.priorityForLabel(value))
         }
 
         // Drawn like the workflow-state chips in the list so the popout keeps
