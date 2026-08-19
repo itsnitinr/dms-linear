@@ -1,8 +1,8 @@
 # Linear Issues
 
 Your open [Linear](https://linear.app) issues in the DankBar. Browse them by
-status, open one in the Linear app, and move it through the workflow without
-leaving the bar.
+status, file a new one, open one in the Linear app, and move it through the
+workflow without leaving the bar.
 
 ![status](https://img.shields.io/badge/DMS-%3E%3D1.5.0-blue) ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -19,6 +19,10 @@ leaving the bar.
   An issue that lands in a state the list does not cover (Done, Canceled, or
   Backlog when it is hidden) drops off, exactly as it would in Linear.
 
+- A compose form behind the **+** in the popout header: title, team,
+  description, priority, and whether it lands on you. Enter files it, Escape
+  backs out, and the draft survives closing the popout mid-sentence.
+
 Each row shows the identifier, title, team, project, due date and up to two
 labels. Overdue issues turn red, issues due within a week turn amber.
 
@@ -31,8 +35,8 @@ labels. Overdue issues turn red, issues due within a week turn amber.
 3. Add the widget: **Settings → DankBar → Widgets**, then drop *Linear Issues*
    into a section.
 
-A read-only key is enough to browse. Changing a status needs a key with write
-access.
+A read-only key is enough to browse. Changing a status or filing a new issue
+needs a key with write access.
 
 ### Keeping the key out of your config
 
@@ -76,6 +80,10 @@ to another host.
 | Bar pill, right click | Force a refresh, re-reading the key command |
 | Issue row | Open the issue |
 | State glyph | Unfold that team's workflow states |
+| Header **+** button | Start a new issue |
+| Title field, Enter | File the issue |
+| Description field, Ctrl+Enter | File the issue |
+| Compose form, Escape | Back out, discarding the draft |
 | Header refresh button | Refresh now |
 
 Opening an issue tries the `linear://` deep link when the Linear desktop app has
@@ -98,6 +106,7 @@ browser.
 | `GraphQlRequest.qml` | One round trip over curl, reconciling the stdout stream and the process exit into a single result |
 | `LinearIssuesWidget.qml` | Bar pill, popout, fetch and mutation flow |
 | `IssueRow.qml` | One issue row and its inline status picker |
+| `ComposeForm.qml` | The new-issue form |
 | `SecretSetting.qml` | Masked text field for the API key |
 | `LinearIssuesSettings.qml` | Settings tab |
 
@@ -109,6 +118,13 @@ browser.
   while it lands, so two clicks cannot race each other.
 - "Assigned to or created by me" runs both filters in a single request and
   merges the overlap.
+- The team list is fetched the first time you open the compose form, not on
+  every poll — the teams you can file into are not the teams already on screen.
+  The last team you filed into is remembered.
+- A new issue only joins the list if it would have passed the filter the list
+  is showing: filed into the backlog while the backlog is hidden, or left
+  unassigned while the list shows only your assigned work, it is announced and
+  left to Linear.
 
 ## License
 

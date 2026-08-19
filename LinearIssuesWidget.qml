@@ -24,6 +24,9 @@ PluginComponent {
     readonly property bool preferDesktopApp: pluginData.preferDesktopApp !== false
     readonly property bool showCount: pluginData.showCount === true
     readonly property int refreshMinutes: Math.max(1, parseInt(pluginData.refreshMinutes || "5") || 5)
+    // Not a user-facing setting: the team you last filed into, so the form
+    // opens where you left it.
+    readonly property string rememberedTeamId: String(pluginData.lastTeamId || "").trim()
     readonly property int maxIssues: Math.max(1, parseInt(pluginData.maxIssues || "50") || 50)
 
     // --- state ------------------------------------------------------------
@@ -239,20 +242,36 @@ PluginComponent {
         root.pickDefaultTeam()
     }
 
-    // The team you last had an issue in is a better guess than the first one
-    // alphabetically, and it is the only guess available before the team list
-    // has landed.
+    // Filing twice in a row almost always means the same team, so the last one
+    // you chose is remembered. Failing that, the team you already have issues
+    // in beats the first one alphabetically — and it is the only guess
+    // available before the team list has landed.
     function pickDefaultTeam() {
         if (root.draftTeamId !== "")
             return
-        for (var i = 0; i < root.issues.length; i++) {
-            if (root.issues[i].teamId !== "") {
-                root.draftTeamId = root.issues[i].teamId
-                return
-            }
+
+        const candidates = [root.rememberedTeamId].concat(root.issues.map(issue => issue.teamId))
+        for (var i = 0; i < candidates.length; i++) {
+            const id = String(candidates[i] || "")
+            if (id === "")
+                continue
+            // Before the list lands a guess cannot be checked; after it lands,
+            // a team you no longer belong to has to be skipped or the dropdown
+            // would show nothing.
+            if (root.teamsLoaded && !Linear.teamById(root.teams, id))
+                continue
+            root.draftTeamId = id
+            return
         }
+
         if (root.teams.length > 0)
             root.draftTeamId = root.teams[0].id
+    }
+
+    function chooseTeam(teamId) {
+        root.draftTeamId = teamId
+        if (root.pluginService)
+            root.pluginService.savePluginData(root.pluginId, "lastTeamId", teamId)
     }
 
     function cancelCompose() {
@@ -466,6 +485,11 @@ PluginComponent {
             root.teamsLoaded = true
             if (root.viewerId === "" && data.viewer)
                 root.viewerId = String(data.viewer.id || "")
+            // A remembered or guessed team you no longer belong to would leave
+            // the dropdown showing nothing, so it is dropped once the real
+            // list arrives.
+            if (root.draftTeamId !== "" && !Linear.teamById(root.teams, root.draftTeamId))
+                root.draftTeamId = ""
             root.pickDefaultTeam()
         }
         onFailed: message => root.flash("Could not load teams: " + message)
@@ -650,10 +674,16 @@ PluginComponent {
                 ignoreUnknownSignals: true
 
                 function onShouldBeVisibleChanged() {
-                    if (popout.parentPopout && popout.parentPopout.shouldBeVisible)
+                    if (popout.parentPopout && popout.parentPopout.shouldBeVisible) {
                         root.refreshIfStale()
-                    else
+                        // The popout takes focus for its own Escape handling
+                        // when it opens, so a draft in progress has to ask for
+                        // the caret back.
+                        if (root.composing)
+                            Qt.callLater(composeForm.focusTitle)
+                    } else {
                         root.expandedIssueId = ""
+                    }
                 }
             }
 
@@ -734,7 +764,7 @@ PluginComponent {
 
                     onTitleEdited: text => root.draftTitle = text
                     onDescriptionEdited: text => root.draftDescription = text
-                    onTeamPicked: teamId => root.draftTeamId = teamId
+                    onTeamPicked: teamId => root.chooseTeam(teamId)
                     onPriorityPicked: priority => root.draftPriority = priority
                     onAssignToggled: on => root.draftAssignSelf = on
                     onSubmitted: root.createIssue()
