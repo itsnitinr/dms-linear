@@ -100,6 +100,15 @@ function buildIssuesQuery(options) {
     }
 }
 
+// Teams you can file into are not the same set as the teams already in your
+// list, so they are asked for separately rather than derived from the issues.
+function buildTeamsQuery() {
+    return {
+        "query": "query DmsLinearTeams {\n  viewer { id }\n  teams(first: 250) {\n    nodes { id key name }\n  }\n}",
+        "variables": {}
+    }
+}
+
 function buildStatesQuery(teamIds) {
     return {
         "query": "query DmsLinearStates($teamIds: [ID!]) {\n  workflowStates(first: 250, filter: { team: { id: { in: $teamIds } } }) {\n    nodes { id name type color position team { id } }\n  }\n}",
@@ -117,6 +126,46 @@ function buildSetStateMutation(issueId, stateId) {
             "stateId": stateId
         }
     }
+}
+
+// The whole input goes over as one variable so optional fields can simply be
+// left out of the object rather than needing a variant of the query per
+// combination. Only `teamId` is required by Linear; a blank title is rejected
+// server side, so it is checked here first.
+function buildCreateIssueMutation(options) {
+    const opts = options || {}
+    const input = {
+        "teamId": trimmed(opts.teamId),
+        "title": trimmed(opts.title)
+    }
+
+    const description = trimmed(opts.description)
+    if (description !== "")
+        input.description = description
+
+    const assigneeId = trimmed(opts.assigneeId)
+    if (assigneeId !== "")
+        input.assigneeId = assigneeId
+
+    if (typeof opts.priority === "number" && opts.priority > 0)
+        input.priority = opts.priority
+
+    return {
+        "query": "mutation DmsLinearCreateIssue($input: IssueCreateInput!) {\n  issueCreate(input: $input) {\n    success\n    issue {" + ISSUE_FIELDS + "}\n  }\n}",
+        "variables": {
+            "input": input
+        }
+    }
+}
+
+// What stops the create button from firing, or "" when the draft is fileable.
+function draftProblem(draft) {
+    const d = draft || {}
+    if (trimmed(d.teamId) === "")
+        return "Pick a team"
+    if (trimmed(d.title) === "")
+        return "Give the issue a title"
+    return ""
 }
 
 // --- response handling -----------------------------------------------------
@@ -222,6 +271,53 @@ function normalizeIssues(data) {
         }
     }
     return out
+}
+
+// Sorted by key, which is how Linear's own team switcher reads.
+function normalizeTeams(data) {
+    const nodes = data && data.teams ? data.teams.nodes || [] : []
+    const out = []
+
+    for (var i = 0; i < nodes.length; i++) {
+        const id = trimmed(nodes[i].id)
+        if (id === "")
+            continue
+        out.push({
+            "id": id,
+            "key": trimmed(nodes[i].key),
+            "name": trimmed(nodes[i].name)
+        })
+    }
+
+    return out.sort((a, b) => a.key.localeCompare(b.key))
+}
+
+function teamLabel(team) {
+    if (!team)
+        return ""
+    if (team.key !== "" && team.name !== "")
+        return team.key + " · " + team.name
+    return team.name || team.key
+}
+
+// The dropdown speaks in labels, so a picked label has to come back to an id.
+function teamIdForLabel(teams, label) {
+    const list = teams || []
+    for (var i = 0; i < list.length; i++) {
+        if (teamLabel(list[i]) === label)
+            return list[i].id
+    }
+    return ""
+}
+
+function teamById(teams, teamId) {
+    const list = teams || []
+    const id = trimmed(teamId)
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].id === id)
+            return list[i]
+    }
+    return null
 }
 
 function normalizeStates(data) {
@@ -343,6 +439,24 @@ var PRIORITY_META = [{
         "icon": "keyboard_arrow_down",
         "urgent": false
     }]
+
+// The compose form's priority dropdown speaks in labels, like every other
+// dropdown in DMS, so it needs the list and the way back to a number.
+function priorityLabels() {
+    return PRIORITY_META.map(meta => meta.label)
+}
+
+function priorityIconMap() {
+    const map = {}
+    for (var i = 0; i < PRIORITY_META.length; i++)
+        map[PRIORITY_META[i].label] = PRIORITY_META[i].icon
+    return map
+}
+
+function priorityForLabel(label) {
+    const index = priorityLabels().indexOf(String(label || ""))
+    return index === -1 ? 0 : index
+}
 
 function priorityMeta(priority) {
     const index = typeof priority === "number" && priority >= 0 && priority < PRIORITY_META.length ? priority : 0

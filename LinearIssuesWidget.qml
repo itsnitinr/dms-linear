@@ -24,6 +24,9 @@ PluginComponent {
     readonly property bool preferDesktopApp: pluginData.preferDesktopApp !== false
     readonly property bool showCount: pluginData.showCount === true
     readonly property int refreshMinutes: Math.max(1, parseInt(pluginData.refreshMinutes || "5") || 5)
+    // Not a user-facing setting: the team you last filed into, so the form
+    // opens where you left it.
+    readonly property string rememberedTeamId: String(pluginData.lastTeamId || "").trim()
     readonly property int maxIssues: Math.max(1, parseInt(pluginData.maxIssues || "50") || 50)
 
     // --- state ------------------------------------------------------------
@@ -45,7 +48,26 @@ PluginComponent {
     // Ticks so the "updated 3m ago" line ages while the popout stays open.
     property real nowTick: Date.now()
 
+    // --- compose ----------------------------------------------------------
+    // The draft lives here rather than in the form so closing the popout
+    // mid-sentence does not throw it away.
+    property bool composing: false
+    property string draftTeamId: ""
+    property string draftTitle: ""
+    property string draftDescription: ""
+    property int draftPriority: 0
+    property bool draftAssignSelf: true
+    property bool pendingAssignSelf: true
+    property var teams: []
+    property bool teamsLoaded: false
+    property string viewerId: ""
+
     readonly property bool configured: configuredKey !== "" || keyCommand !== ""
+    readonly property bool creating: createRequest.running
+    readonly property string draftProblem: Linear.draftProblem({
+        "teamId": root.draftTeamId,
+        "title": root.draftTitle
+    })
     readonly property bool fetching: issuesRequest.running || keyProc.running
     readonly property int openCount: issues.length
     readonly property int startedCount: Linear.countStarted(issues)
@@ -60,6 +82,8 @@ PluginComponent {
     readonly property string statusLine: {
         if (!root.configured)
             return "No API key configured"
+        if (root.composing && root.flashMessage === "")
+            return "New issue"
         if (root.lastError !== "")
             return root.lastError
         if (root.flashMessage !== "")
@@ -107,6 +131,8 @@ PluginComponent {
         root.keyResolved = false
         root.lastError = ""
         root.loadedStatesKey = ""
+        root.teamsLoaded = false
+        root.viewerId = ""
         Qt.callLater(root.refresh)
     }
 
@@ -155,7 +181,10 @@ PluginComponent {
     function applyIssues(data) {
         root.issues = Linear.normalizeIssues(data)
         root.sections = Linear.groupIssues(root.issues)
-        root.viewerName = data.viewer ? String(data.viewer.displayName || data.viewer.name || "") : ""
+        if (data.viewer) {
+            root.viewerName = String(data.viewer.displayName || data.viewer.name || "")
+            root.viewerId = String(data.viewer.id || "")
+        }
         root.lastUpdated = new Date()
         root.lastError = ""
         root.fetchStates()
@@ -180,6 +209,132 @@ PluginComponent {
         if (!issue || !issue.teamId)
             return []
         return root.statesByTeam[issue.teamId] || []
+    }
+
+    // The team list is only needed to file an issue, so it is fetched the
+    // first time the form opens rather than on every poll.
+    function fetchTeams() {
+        if (root.teamsLoaded || teamsRequest.running)
+            return
+        // Composing before the first poll has resolved the key: kick the key
+        // off and let onKeyResolvedChanged come back to this.
+        if (root.apiKey === "") {
+            root.refresh()
+            return
+        }
+        teamsRequest.send(root.apiKey, Linear.buildTeamsQuery())
+    }
+
+    onKeyResolvedChanged: {
+        if (root.keyResolved && root.composing)
+            root.fetchTeams()
+    }
+
+    // --- compose ----------------------------------------------------------
+
+    function startCompose() {
+        if (!root.configured)
+            return
+
+        root.expandedIssueId = ""
+        root.composing = true
+        root.fetchTeams()
+        root.pickDefaultTeam()
+    }
+
+    // Filing twice in a row almost always means the same team, so the last one
+    // you chose is remembered. Failing that, the team you already have issues
+    // in beats the first one alphabetically — and it is the only guess
+    // available before the team list has landed.
+    function pickDefaultTeam() {
+        if (root.draftTeamId !== "")
+            return
+
+        const candidates = [root.rememberedTeamId].concat(root.issues.map(issue => issue.teamId))
+        for (var i = 0; i < candidates.length; i++) {
+            const id = String(candidates[i] || "")
+            if (id === "")
+                continue
+            // Before the list lands a guess cannot be checked; after it lands,
+            // a team you no longer belong to has to be skipped or the dropdown
+            // would show nothing.
+            if (root.teamsLoaded && !Linear.teamById(root.teams, id))
+                continue
+            root.draftTeamId = id
+            return
+        }
+
+        if (root.teams.length > 0)
+            root.draftTeamId = root.teams[0].id
+    }
+
+    function chooseTeam(teamId) {
+        root.draftTeamId = teamId
+        if (root.pluginService)
+            root.pluginService.savePluginData(root.pluginId, "lastTeamId", teamId)
+    }
+
+    function cancelCompose() {
+        root.composing = false
+        root.clearDraft()
+    }
+
+    // The team survives: it is a preference, not part of what you just wrote.
+    function clearDraft() {
+        root.draftTitle = ""
+        root.draftDescription = ""
+        root.draftPriority = 0
+    }
+
+    function createIssue() {
+        if (root.creating || root.draftProblem !== "" || root.apiKey === "")
+            return
+
+        const payload = Linear.buildCreateIssueMutation({
+            "teamId": root.draftTeamId,
+            "title": root.draftTitle,
+            "description": root.draftDescription,
+            "priority": root.draftPriority,
+            "assigneeId": root.draftAssignSelf ? root.viewerId : ""
+        })
+
+        if (!createRequest.send(root.apiKey, payload))
+            return
+
+        root.pendingAssignSelf = root.draftAssignSelf
+    }
+
+    // A created issue only joins the list if it would have passed the filter
+    // the list is showing — otherwise it is announced and left to Linear.
+    function belongsInList(issue, assignedToMe) {
+        if (issue.stateType === "completed" || issue.stateType === "canceled")
+            return false
+        if (!root.includeBacklog && issue.stateType === "backlog")
+            return false
+        if (root.scope === "assigned" && !assignedToMe)
+            return false
+        return true
+    }
+
+    function applyCreatedIssue(node) {
+        const issue = Linear.normalizeIssue(node)
+        if (!issue) {
+            root.flash("Linear accepted the issue but described it oddly")
+            return
+        }
+
+        root.composing = false
+        root.clearDraft()
+
+        if (root.belongsInList(issue, root.pendingAssignSelf)) {
+            root.issues = [issue].concat(root.issues)
+            root.sections = Linear.groupIssues(root.issues)
+            // A first issue in a team the list has not seen needs that team's
+            // workflow states before its status picker will work.
+            root.fetchStates()
+        }
+
+        root.flash(issue.identifier + " created")
     }
 
     // --- actions ----------------------------------------------------------
@@ -323,6 +478,37 @@ PluginComponent {
     }
 
     GraphQlRequest {
+        id: teamsRequest
+
+        onSucceeded: data => {
+            root.teams = Linear.normalizeTeams(data)
+            root.teamsLoaded = true
+            if (root.viewerId === "" && data.viewer)
+                root.viewerId = String(data.viewer.id || "")
+            // A remembered or guessed team you no longer belong to would leave
+            // the dropdown showing nothing, so it is dropped once the real
+            // list arrives.
+            if (root.draftTeamId !== "" && !Linear.teamById(root.teams, root.draftTeamId))
+                root.draftTeamId = ""
+            root.pickDefaultTeam()
+        }
+        onFailed: message => root.flash("Could not load teams: " + message)
+    }
+
+    GraphQlRequest {
+        id: createRequest
+
+        onSucceeded: data => {
+            const result = data.issueCreate
+            if (result && result.success)
+                root.applyCreatedIssue(result.issue)
+            else
+                root.flash("Linear did not accept the new issue")
+        }
+        onFailed: message => root.flash(message)
+    }
+
+    GraphQlRequest {
         id: mutationRequest
 
         onSucceeded: data => {
@@ -457,13 +643,28 @@ PluginComponent {
             showCloseButton: true
 
             headerActions: Component {
-                DankActionButton {
-                    iconName: "refresh"
-                    iconColor: Theme.surfaceText
-                    enabled: root.configured && !root.fetching
-                    opacity: enabled ? 1 : 0.4
-                    tooltipText: root.fetching ? "Refreshing…" : "Refresh issues"
-                    onClicked: root.forceRefresh()
+                Row {
+                    spacing: Theme.spacingXS
+
+                    DankActionButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "add"
+                        iconColor: Theme.surfaceText
+                        enabled: root.configured && !root.composing
+                        opacity: enabled ? 1 : 0.4
+                        tooltipText: "New issue"
+                        onClicked: root.startCompose()
+                    }
+
+                    DankActionButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "refresh"
+                        iconColor: Theme.surfaceText
+                        enabled: root.configured && !root.fetching && !root.composing
+                        opacity: enabled ? 1 : 0.4
+                        tooltipText: root.fetching ? "Refreshing…" : "Refresh issues"
+                        onClicked: root.forceRefresh()
+                    }
                 }
             }
 
@@ -473,10 +674,16 @@ PluginComponent {
                 ignoreUnknownSignals: true
 
                 function onShouldBeVisibleChanged() {
-                    if (popout.parentPopout && popout.parentPopout.shouldBeVisible)
+                    if (popout.parentPopout && popout.parentPopout.shouldBeVisible) {
                         root.refreshIfStale()
-                    else
+                        // The popout takes focus for its own Escape handling
+                        // when it opens, so a draft in progress has to ask for
+                        // the caret back.
+                        if (root.composing)
+                            Qt.callLater(composeForm.focusTitle)
+                    } else {
                         root.expandedIssueId = ""
+                    }
                 }
             }
 
@@ -539,13 +746,48 @@ PluginComponent {
                     }
                 }
 
+                // ---- compose
+                ComposeForm {
+                    id: composeForm
+
+                    width: body.innerWidth
+                    visible: root.composing
+                    teams: root.teams
+                    draftTeamId: root.draftTeamId
+                    draftTitle: root.draftTitle
+                    draftDescription: root.draftDescription
+                    draftPriority: root.draftPriority
+                    draftAssignSelf: root.draftAssignSelf
+                    canAssign: root.viewerId !== ""
+                    busy: root.creating
+                    problem: root.draftProblem
+
+                    onTitleEdited: text => root.draftTitle = text
+                    onDescriptionEdited: text => root.draftDescription = text
+                    onTeamPicked: teamId => root.chooseTeam(teamId)
+                    onPriorityPicked: priority => root.draftPriority = priority
+                    onAssignToggled: on => root.draftAssignSelf = on
+                    onSubmitted: root.createIssue()
+                    onCancelled: root.cancelCompose()
+
+                    onVisibleChanged: {
+                        if (visible)
+                            Qt.callLater(composeForm.focusTitle)
+                    }
+
+                    Component.onCompleted: {
+                        if (visible)
+                            Qt.callLater(composeForm.focusTitle)
+                    }
+                }
+
                 // ---- error banner
                 StyledRect {
                     width: body.innerWidth
                     implicitHeight: errorRow.implicitHeight + Theme.spacingS * 2
                     radius: Theme.cornerRadius
                     color: Theme.withAlpha(Theme.error, 0.12)
-                    visible: root.configured && root.lastError !== ""
+                    visible: root.configured && root.lastError !== "" && !root.composing
 
                     Row {
                         id: errorRow
@@ -584,7 +826,7 @@ PluginComponent {
                     contentHeight: listColumn.implicitHeight
                     contentWidth: width
                     clip: true
-                    visible: root.issues.length > 0
+                    visible: root.issues.length > 0 && !root.composing
 
                     Column {
                         id: listColumn
@@ -650,7 +892,7 @@ PluginComponent {
                 Column {
                     width: body.innerWidth
                     spacing: Theme.spacingXS
-                    visible: root.configured && root.issues.length === 0 && !root.fetching && root.lastError === ""
+                    visible: root.configured && root.issues.length === 0 && !root.fetching && root.lastError === "" && !root.composing
 
                     StyledText {
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -672,7 +914,7 @@ PluginComponent {
                 Row {
                     anchors.horizontalCenter: parent.horizontalCenter
                     spacing: Theme.spacingS
-                    visible: root.fetching && root.issues.length === 0 && root.configured
+                    visible: root.fetching && root.issues.length === 0 && root.configured && !root.composing
 
                     DankSpinner {
                         anchors.verticalCenter: parent.verticalCenter

@@ -10,7 +10,7 @@ PluginSettings {
 
     StyledText {
         width: parent.width
-        text: "Create a personal API key at linear.app → Settings → Security & access → Personal API keys. A read-only key is enough to browse issues, but changing a status needs write access."
+        text: "Create a personal API key at linear.app → Settings → Security & access → Personal API keys. A read-only key is enough to browse issues, but changing a status or filing a new one needs write access."
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
         wrapMode: Text.WordWrap
