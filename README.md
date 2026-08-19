@@ -71,6 +71,7 @@ to another host.
 | Maximum issues | 50 | Upper bound on how many issues are fetched |
 | Open in the Linear app | On | Use `linear://` when the desktop app is installed |
 | Show issue count in the bar | Off | Show the number next to the icon instead of a dot |
+| Show the dot indicator | On | Mark the icon with a dot when you have open issues; off leaves it plain |
 
 ## Interactions
 

@@ -23,6 +23,7 @@ PluginComponent {
     readonly property bool includeBacklog: pluginData.includeBacklog !== false
     readonly property bool preferDesktopApp: pluginData.preferDesktopApp !== false
     readonly property bool showCount: pluginData.showCount === true
+    readonly property bool showDot: pluginData.showDot !== false
     readonly property int refreshMinutes: Math.max(1, parseInt(pluginData.refreshMinutes || "5") || 5)
     // Not a user-facing setting: the team you last filed into, so the form
     // opens where you left it.
@@ -76,7 +77,7 @@ PluginComponent {
     // same pixel size, so the mark is drawn a little smaller to match them.
     readonly property int pillIconSize: Math.max(13, Math.round(widgetThickness * 0.46))
     readonly property int dotSize: Math.max(6, Math.round(pillIconSize * 0.38))
-    readonly property bool dotVisible: lastError !== "" || openCount > 0
+    readonly property bool dotVisible: showDot && (lastError !== "" || openCount > 0)
     readonly property color dotColor: lastError !== "" ? Theme.error : (startedCount > 0 ? Theme.primary : Theme.secondary)
 
     readonly property string statusLine: {

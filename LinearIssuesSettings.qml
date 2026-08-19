@@ -127,4 +127,11 @@ PluginSettings {
         description: "Put the number of open issues next to the bar icon instead of just a dot"
         defaultValue: false
     }
+
+    ToggleSetting {
+        settingKey: "showDot"
+        label: "Show the dot indicator"
+        description: "Mark the bar icon with a dot when you have open issues. Turn this off for a plain icon. The count above, when enabled, replaces the dot either way."
+        defaultValue: true
+    }
 }
